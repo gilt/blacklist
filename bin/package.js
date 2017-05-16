@@ -41,7 +41,7 @@ const cloudFormationPermissionTemplate = {
           { "Ref": "AWS::AccountId" },
           ":",
           { "Ref": "Api" },
-          "/*/POST/*"
+          "/*/*/*"
         ]
       ]
     }

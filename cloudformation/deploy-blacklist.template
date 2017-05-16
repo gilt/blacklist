@@ -201,6 +201,177 @@
         "MoMessageResource"
       ]
     },
+    "NotificationTypeResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "Api",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "{notification_type}",
+        "RestApiId": {
+          "Ref": "Api"
+        }
+      },
+      "DependsOn": [
+        "Api"
+      ]
+    },
+    "BlacklistResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": {
+          "Ref": "NotificationTypeResource"
+        },
+        "PathPart": "{blacklist_id}",
+        "RestApiId": {
+          "Ref": "Api"
+        }
+      },
+      "DependsOn": [
+        "NotificationTypeResource"
+      ]
+    },
+    "BlacklistDelete": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "ResourceId": {
+          "Ref": "BlacklistResource"
+        },
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "HttpMethod": "DELETE",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:aws:apigateway:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":lambda:path/2015-03-31/functions/arn:aws:lambda:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":",
+                {
+                  "Ref": "AWS::AccountId"
+                },
+                ":function:",
+                {
+                  "Ref": "DeleteFunction"
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        }
+      },
+      "DependsOn": [
+        "Api",
+        "DeleteFunction",
+        "BlacklistResource"
+      ]
+    },
+    "BlacklistGet": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "ResourceId": {
+          "Ref": "BlacklistResource"
+        },
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "HttpMethod": "GET",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:aws:apigateway:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":lambda:path/2015-03-31/functions/arn:aws:lambda:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":",
+                {
+                  "Ref": "AWS::AccountId"
+                },
+                ":function:",
+                {
+                  "Ref": "GetFunction"
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        }
+      },
+      "DependsOn": [
+        "Api",
+        "GetFunction",
+        "BlacklistResource"
+      ]
+    },
+    "BlacklistPut": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "ResourceId": {
+          "Ref": "BlacklistResource"
+        },
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "HttpMethod": "PUT",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:aws:apigateway:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":lambda:path/2015-03-31/functions/arn:aws:lambda:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":",
+                {
+                  "Ref": "AWS::AccountId"
+                },
+                ":function:",
+                {
+                  "Ref": "PutFunction"
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        }
+      },
+      "DependsOn": [
+        "Api",
+        "PutFunction",
+        "BlacklistResource"
+      ]
+    },
     "Deployment": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
@@ -210,6 +381,9 @@
         }
       },
       "DependsOn": [
+        "BlacklistDelete",
+        "BlacklistGet",
+        "BlacklistPut",
         "MoMessagePost"
       ]
     },
@@ -317,7 +491,7 @@
               {
                 "Ref": "Api"
               },
-              "/*/POST/*"
+              "/*/*/*"
             ]
           ]
         }
@@ -449,7 +623,7 @@
               {
                 "Ref": "Api"
               },
-              "/*/POST/*"
+              "/*/*/*"
             ]
           ]
         }
@@ -561,7 +735,7 @@
               {
                 "Ref": "Api"
               },
-              "/*/POST/*"
+              "/*/*/*"
             ]
           ]
         }
@@ -675,7 +849,7 @@
               {
                 "Ref": "Api"
               },
-              "/*/POST/*"
+              "/*/*/*"
             ]
           ]
         }
