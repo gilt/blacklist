@@ -62,6 +62,24 @@ var mockDynamo = {
       }
     }
     if (request.UpdateExpression) {
+      var matches = request.UpdateExpression.match(/(add)\s+([^\s=]+\s*=\s*[^\s=]+\s*,?\s*)+/ig);
+      if (matches) {
+        matches[0].substring(3,matches[0].length).split(',').forEach(function(keyValue) {
+          var kv = keyValue.split('='),
+              key = kv[0].trim(),
+              value = kv[1].trim();
+          if (request.ExpressionAttributeNames && request.ExpressionAttributeNames[key]) key = request.ExpressionAttributeNames[key];
+          if (request.ExpressionAttributeValues && request.ExpressionAttributeValues[value]) value = request.ExpressionAttributeValues[value];
+          if (value.SS) {
+            if (!item[key]) item[key] = {SS: []};
+            item[key].SS = item[key].SS.concat(value.SS);
+          } else if (value.N) {
+            if (!item[key]) item[key] = 0;
+            item[key] += value.N;
+          }
+        });
+      }
+
       var matches = request.UpdateExpression.match(/(set)\s+([^\s=]+\s*=\s*[^\s=]+\s*,?\s*)+/ig);
       if (matches) {
         matches[0].substring(3,matches[0].length).split(',').forEach(function(keyValue) {

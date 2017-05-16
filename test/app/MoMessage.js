@@ -56,6 +56,33 @@ describe('MoMessage', function() {
         });
       });
 
+      it('should keep track of messages', function() {
+        assert.equal(helper.get('2125555555', 'sms'), undefined);
+        var body = moMessageTemplate.replace('{message}', 'UnSubscribeMe!!!').replace('{number}', phoneNumber);
+        lib.handler({
+          body: body
+        }, null, function(err, data) {
+          assert.equal(err, null);
+          assert.equal(data.statusCode, 200);
+          assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
+          var rawValue = helper.get('2125555555', 'sms');
+          assert.equal(rawValue.Id.S, '2125555555');
+          assert.equal(rawValue.Type.S, 'sms');
+          assert.deepEqual(rawValue.Log.SS, [body]);
+          lib.handler({
+            body: body
+          }, null, function(err, data) {
+            assert.equal(err, null);
+            assert.equal(data.statusCode, 200);
+            assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
+            var rawValue = helper.get('2125555555', 'sms');
+            assert.equal(rawValue.Id.S, '2125555555');
+            assert.equal(rawValue.Type.S, 'sms');
+            assert.deepEqual(rawValue.Log.SS, [body, body]);
+          });
+        });
+      });
+
       it('should not blacklist if the message does not include a stop word', function() {
         assert.equal(helper.get('2125555555', 'sms'), undefined);
         lib.handler({

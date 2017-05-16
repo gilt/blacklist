@@ -58,6 +58,47 @@ describe('Delete', function() {
         });
       });
 
+      it('should keep track of messages', function() {
+        assert.equal(helper.get('2125555555', 'sms'), undefined);
+        const message = JSON.stringify({
+          httpMethod: 'DELETE',
+          pathParameters: {
+            blacklist_id: phoneNumber,
+            notification_type: 'sms'
+          }
+        })
+        lib.handler({
+          httpMethod: 'DELETE',
+          pathParameters: {
+            blacklist_id: phoneNumber,
+            notification_type: 'sms'
+          }
+        }, null, function(err, data) {
+          assert.equal(err, null);
+          assert.equal(data.statusCode, 200);
+          assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
+          var rawValue = helper.get('2125555555', 'sms');
+          assert.equal(rawValue.Id.S, '2125555555');
+          assert.equal(rawValue.Type.S, 'sms');
+          assert.deepEqual(rawValue.Log.SS, [message]);
+          lib.handler({
+            httpMethod: 'DELETE',
+            pathParameters: {
+              blacklist_id: phoneNumber,
+              notification_type: 'sms'
+            }
+          }, null, function(err, data) {
+            assert.equal(err, null);
+            assert.equal(data.statusCode, 200);
+            assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
+            var rawValue = helper.get('2125555555', 'sms');
+            assert.equal(rawValue.Id.S, '2125555555');
+            assert.equal(rawValue.Type.S, 'sms');
+            assert.deepEqual(rawValue.Log.SS, [message, message]);
+          });
+        });
+      });
+
       it('should not allow invalid notification types', function() {
         lib.handler({
           pathParameters: {
