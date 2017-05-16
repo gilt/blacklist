@@ -62,10 +62,10 @@ var mockDynamo = {
       }
     }
     if (request.UpdateExpression) {
-      var matches = request.UpdateExpression.match(/(add)\s+([^\s=]+\s*=\s*[^\s=]+\s*,?\s*)+/ig);
+      var matches = request.UpdateExpression.match(/\badd\s+(.+)/ig);
       if (matches) {
-        matches[0].substring(3,matches[0].length).split(',').forEach(function(keyValue) {
-          var kv = keyValue.split('='),
+        isolateExpression(matches[0], 'add').split(',').forEach(function(keyValue) {
+          var kv = keyValue.trim().split(/\s+/),
               key = kv[0].trim(),
               value = kv[1].trim();
           if (request.ExpressionAttributeNames && request.ExpressionAttributeNames[key]) key = request.ExpressionAttributeNames[key];
@@ -80,9 +80,9 @@ var mockDynamo = {
         });
       }
 
-      var matches = request.UpdateExpression.match(/(set)\s+([^\s=]+\s*=\s*[^\s=]+\s*,?\s*)+/ig);
+      var matches = request.UpdateExpression.match(/\bset\s+(.+)/ig);
       if (matches) {
-        matches[0].substring(3,matches[0].length).split(',').forEach(function(keyValue) {
+        isolateExpression(matches[0], 'set').split(',').forEach(function(keyValue) {
           var kv = keyValue.split('='),
               key = kv[0].trim(),
               value = kv[1].trim();
@@ -92,9 +92,9 @@ var mockDynamo = {
         });
       }
 
-      matches = request.UpdateExpression.match(/(remove)\s+([^\s]+\s*)+/ig);
+      matches = request.UpdateExpression.match(/\bremove\s+(.+)/ig);
       if (matches) {
-        matches[0].substring(6, matches[0].length).split(',').forEach(function(key) {
+        isolateExpression(matches[0], 'remove').split(',').forEach(function(key) {
           key = key.trim();
           if (request.ExpressionAttributeNames && request.ExpressionAttributeNames[key]) key = request.ExpressionAttributeNames[key];
           delete item[key];
@@ -105,7 +105,17 @@ var mockDynamo = {
     for (var i = 0; i < keys.length; i++) {
       item[keys[i]] = request.Key[keys[i]];
     }
+    console.log(JSON.stringify(item));
     this.objects[request.TableName][request.Key] = item;
     callback(null, {});
   }
+}
+
+function isolateExpression(str, currentTerm) {
+  const terms = ['add', 'delete', 'set', 'REMOVE'];
+  var result = str.replace(new RegExp('^' + currentTerm.toLowerCase(), 'ig'), '');
+  terms.forEach(function(term) {
+    if (term != currentTerm.toLowerCase()) result = result.replace(new RegExp('\\b' + term + '\\s+.*', 'ig'), '');
+  });
+  return result;
 }

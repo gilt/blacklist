@@ -11,11 +11,12 @@ exports.handler = (event, context, callback) => {
         dynamo.updateItem({
           TableName: process.env.TABLE_NAME,
           Key: { Id: { S: originNumber }, Type: { S: 'sms' } },
+          ExpressionAttributeNames: { '#l': 'Log' },
           ExpressionAttributeValues: {
             ':d': { S: (new Date()).toISOString() },
             ':m': { SS: [ moMessageXml ] }
           },
-          UpdateExpression: 'SET UpdatedAt=:d ADD Log=:m REMOVE DeletedAt'
+          UpdateExpression: 'SET UpdatedAt=:d ADD #l :m REMOVE DeletedAt'
         }, function(err, data) {
           if (err) return callback(err);
           callback(null, { statusCode: 200, body: JSON.stringify({ id: originNumber }) });
