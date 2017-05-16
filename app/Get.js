@@ -2,7 +2,7 @@ const AWS = require('aws-sdk'),
       dynamo = new AWS.DynamoDB();
 
 exports.handler = (event, context, callback) => {
-  const blacklistId = event.pathParameters.blacklist_id;
+  const blacklistId = sanitizeNumber(event.pathParameters.blacklist_id);
   withSupportedType(event, context, callback, function(notificationType) {
     dynamo.getItem({
       TableName: process.env.TABLE_NAME,
@@ -44,4 +44,10 @@ function withSupportedType(event, context, lambdaCallback, callback) {
   } else {
     lambdaCallback(null, { statusCode: 400, body: JSON.stringify({ message: 'Notification type [' + event.pathParameters.notification_type + '] not supported.' }) });
   }
+}
+
+function sanitizeNumber(raw) {
+  var numbers = raw.replace(/[^\d]+/g, '');
+  if (numbers.match(/^1\d{10}$/)) numbers = numbers.substring(1, 11);
+  return numbers;
 }

@@ -2,17 +2,18 @@ const AWS = require('aws-sdk'),
       dynamo = new AWS.DynamoDB();
 
 exports.handler = (event, context, callback) => {
+  const blacklistId = sanitizeNumber(event.pathParameters.blacklist_id);
   withSupportedType(event, context, callback, function(notificationType) {
     dynamo.updateItem({
       TableName: process.env.TABLE_NAME,
-      Key: { Id: { S: event.pathParameters.blacklist_id }, Type: { S: notificationType } },
+      Key: { Id: { S: blacklistId }, Type: { S: notificationType } },
       ExpressionAttributeValues: {
         ':d': { S: (new Date()).toISOString() }
       },
       UpdateExpression: 'SET DeletedAt=:d, UpdatedAt=:d'
     }, function(err, data) {
       if (err) return callback(err);
-      callback(null, { statusCode: 200, body: JSON.stringify({ id: event.pathParameters.blacklist_id }) });
+      callback(null, { statusCode: 200, body: JSON.stringify({ id: blacklistId }) });
     })
   });
 }
@@ -24,4 +25,10 @@ function withSupportedType(event, context, lambdaCallback, callback) {
   } else {
     lambdaCallback(null, { statusCode: 400, body: JSON.stringify({ message: 'Notification type [' + event.pathParameters.notification_type + '] not supported.' }) });
   }
+}
+
+function sanitizeNumber(raw) {
+  var numbers = raw.replace(/[^\d]+/g, '');
+  if (numbers.match(/^1\d{10}$/)) numbers = numbers.substring(1, 11);
+  return numbers;
 }
