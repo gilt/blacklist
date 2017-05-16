@@ -1,0 +1,31 @@
+{
+  "name": "blacklist",
+  "version": "0.1.0",
+  "description": "A nanoservice that keeps track of recipients who should not be sent a certain type of communication",
+  "main": "app/apidoc-swagger-generator.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha --recursive test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gilt/blacklist"
+  },
+  "keywords": [
+    "apidoc",
+    "swagger"
+  ],
+  "author": "Ryan Martin",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/gilt/blacklist/issues"
+  },
+  "dependencies": { },
+  "devDependencies": {
+    "aws-sdk": "2.x",
+    "mocha": "^2.4.5",
+    "sinon": "^1.17.3"
+  }
+}

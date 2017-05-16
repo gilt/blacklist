@@ -1,0 +1,637 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "StopWords": {
+      "Type": "String",
+      "Description": "A regular expression that is used to match the message as a 'stop' message."
+    }
+  },
+  "Resources": {
+    "DB": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "Id",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "Type",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "Id",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "Type",
+            "KeyType": "RANGE"
+          }
+        ],
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 1,
+          "WriteCapacityUnits": 1
+        },
+        "TableName": {
+          "Ref": "AWS::StackName"
+        }
+      }
+    },
+    "LambdaRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "LogWriter",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "arn:aws:logs:*:*:*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "DBWriter",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:Scan",
+                    "dynamodb:UpdateItem"
+                  ],
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:aws:dynamodb:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":table/",
+                        {
+                          "Ref": "DB"
+                        }
+                      ]
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "DependsOn": [
+        "DB"
+      ]
+    },
+    "Api": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": {
+          "Ref": "AWS::StackName"
+        },
+        "Description": {
+          "Fn::Join": [
+            " ",
+            [
+              "API endpoints for",
+              {
+                "Ref": "AWS::StackName"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "MoMessageResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "Api",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "mo_message",
+        "RestApiId": {
+          "Ref": "Api"
+        }
+      },
+      "DependsOn": [
+        "Api"
+      ]
+    },
+    "MoMessagePost": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "ResourceId": {
+          "Ref": "MoMessageResource"
+        },
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "HttpMethod": "POST",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:aws:apigateway:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":lambda:path/2015-03-31/functions/arn:aws:lambda:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":",
+                {
+                  "Ref": "AWS::AccountId"
+                },
+                ":function:",
+                {
+                  "Ref": "MoMessageFunction"
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        }
+      },
+      "DependsOn": [
+        "Api",
+        "MoMessageFunction",
+        "MoMessageResource"
+      ]
+    },
+    "Deployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "StageName": "prod",
+        "RestApiId": {
+          "Ref": "Api"
+        }
+      },
+      "DependsOn": [
+        "MoMessagePost"
+      ]
+    },
+    "DeleteFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "ZipFile": {
+            "Fn::Join": [
+              "\n",
+              [
+                "const AWS = require('aws-sdk'),",
+                "      dynamo = new AWS.DynamoDB();",
+                "",
+                "exports.handler = (event, context, callback) => {",
+                "  withSupportedType(event, context, callback, function(notificationType) {",
+                "    dynamo.updateItem({",
+                "      TableName: process.env.TABLE_NAME,",
+                "      Key: { Id: { S: event.pathParameters.blacklist_id }, Type: { S: notificationType } },",
+                "      ExpressionAttributeValues: {",
+                "        ':d': { S: (new Date()).toISOString() }",
+                "      },",
+                "      UpdateExpression: 'SET DeletedAt=:d, UpdatedAt=:d'",
+                "    }, function(err, data) {",
+                "      if (err) return callback(err);",
+                "      callback(null, { statusCode: 200, body: JSON.stringify({ id: event.pathParameters.blacklist_id }) });",
+                "    })",
+                "  });",
+                "}",
+                "",
+                "function withSupportedType(event, context, lambdaCallback, callback) {",
+                "  const supportedTypes = ['sms'];",
+                "  if (supportedTypes.indexOf(event.pathParameters.notification_type.toLowerCase()) >= 0) {",
+                "    callback(event.pathParameters.notification_type.toLowerCase());",
+                "  } else {",
+                "    lambdaCallback(null, { statusCode: 400, body: JSON.stringify({ message: 'Notification type [' + event.pathParameters.notification_type + '] not supported.' }) });",
+                "  }",
+                "}",
+                ""
+              ]
+            ]
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "TABLE_NAME": {
+              "Ref": "DB"
+            }
+          }
+        },
+        "Runtime": "nodejs4.3",
+        "Timeout": "30"
+      },
+      "DependsOn": [
+        "LambdaRole"
+      ]
+    },
+    "DeleteFunctionPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "DeleteFunction",
+            "Arn"
+          ]
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:execute-api:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "Api"
+              },
+              "/*/POST/*"
+            ]
+          ]
+        }
+      },
+      "DependsOn": [
+        "DeleteFunction",
+        "Api"
+      ]
+    },
+    "GetFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "ZipFile": {
+            "Fn::Join": [
+              "\n",
+              [
+                "const AWS = require('aws-sdk'),",
+                "      dynamo = new AWS.DynamoDB();",
+                "",
+                "exports.handler = (event, context, callback) => {",
+                "  const blacklistId = event.pathParameters.blacklist_id;",
+                "  withSupportedType(event, context, callback, function(notificationType) {",
+                "    dynamo.getItem({",
+                "      TableName: process.env.TABLE_NAME,",
+                "      Key: { Id: blacklistId, Type: notificationType }",
+                "    }, function(err, data) {",
+                "      if (err) return callback(err);",
+                "      if ((data && afterNow(data, \"DeletedAt\")) || !onWhitelist(blacklistId)) {",
+                "        callback(null, { statusCode: 200, body: JSON.stringify({ id: blacklistId }) });",
+                "      } else {",
+                "        callback(null, { statusCode: 404, body: JSON.stringify({ message: \"Entry not blacklisted\" }) });",
+                "      }",
+                "    })",
+                "  });",
+                "}",
+                "",
+                "function afterNow(data, propertyName) {",
+                "  if (data && data.Item && data.Item[propertyName] && data.Item[propertyName].S) {",
+                "    return Date.parse(data.Item[propertyName].S) >= new Date();",
+                "  } else {",
+                "    return true;",
+                "  }",
+                "}",
+                "",
+                "function onWhitelist(blacklistId) {",
+                "  // Set the whitelist in staging to only allow certain entries.",
+                "  var whitelist = process.env.WHITELIST;",
+                "  if (whitelist && whitelist.trim() != '') {",
+                "    const whitelisted = process.env.WHITELIST.split(',');",
+                "    return whitelisted.findIndex(function(item) { return blacklistId == item.trim(); }) >= 0;",
+                "  } else {",
+                "    return true;",
+                "  }",
+                "}",
+                "",
+                "function withSupportedType(event, context, lambdaCallback, callback) {",
+                "  const supportedTypes = ['sms'];",
+                "  if (supportedTypes.indexOf(event.pathParameters.notification_type.toLowerCase()) >= 0) {",
+                "    callback(event.pathParameters.notification_type.toLowerCase());",
+                "  } else {",
+                "    lambdaCallback(null, { statusCode: 400, body: JSON.stringify({ message: 'Notification type [' + event.pathParameters.notification_type + '] not supported.' }) });",
+                "  }",
+                "}",
+                ""
+              ]
+            ]
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "TABLE_NAME": {
+              "Ref": "DB"
+            }
+          }
+        },
+        "Runtime": "nodejs4.3",
+        "Timeout": "30"
+      },
+      "DependsOn": [
+        "LambdaRole"
+      ]
+    },
+    "GetFunctionPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "GetFunction",
+            "Arn"
+          ]
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:execute-api:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "Api"
+              },
+              "/*/POST/*"
+            ]
+          ]
+        }
+      },
+      "DependsOn": [
+        "GetFunction",
+        "Api"
+      ]
+    },
+    "MoMessageFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "ZipFile": {
+            "Fn::Join": [
+              "\n",
+              [
+                "const AWS = require('aws-sdk'),",
+                "      dynamo = new AWS.DynamoDB();",
+                "",
+                "exports.handler = (event, context, callback) => {",
+                "  const moMessageXml = event.body;",
+                "  if (messageMatch = moMessageXml.match(/<message>(.*)<\\/message>/)) {",
+                "    if (messageMatch[1].toLowerCase().match(process.env.STOP_WORDS)) { // STOP_WORDS should be a Regex",
+                "      if (originNumberMatch = moMessageXml.match(/<\\s*source\\s+.*?address\\s*=\\s*[\"'](.*?)[\"']/)) {",
+                "        var originNumber = originNumberMatch[1].replace(/[^\\d]+/g, '');",
+                "        dynamo.updateItem({",
+                "          TableName: process.env.TABLE_NAME,",
+                "          Key: { Id: { S: originNumber }, Type: { S: 'sms' } },",
+                "          ExpressionAttributeValues: {",
+                "            ':d': { S: (new Date()).toISOString() }",
+                "          },",
+                "          UpdateExpression: 'SET UpdatedAt=:d REMOVE DeletedAt'",
+                "        }, function(err, data) {",
+                "          if (err) return callback(err);",
+                "          callback(null, { statusCode: 200, body: JSON.stringify({ id: originNumber }) });",
+                "        });",
+                "      } else {",
+                "        callback(null, { statusCode: 400, body: JSON.stringify({ message: 'Missing source address' }) });",
+                "      }",
+                "    } else {",
+                "      callback(null, { statusCode: 200, body: JSON.stringify({ id: '' }) });",
+                "    }",
+                "  } else {",
+                "    callback(null, { statusCode: 400, body: JSON.stringify({ message: 'Invalid message xml' }) });",
+                "  }",
+                "}",
+                ""
+              ]
+            ]
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "TABLE_NAME": {
+              "Ref": "DB"
+            },
+            "STOP_WORDS": {
+              "Ref": "StopWords"
+            }
+          }
+        },
+        "Runtime": "nodejs4.3",
+        "Timeout": "30"
+      },
+      "DependsOn": [
+        "LambdaRole"
+      ]
+    },
+    "MoMessageFunctionPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "MoMessageFunction",
+            "Arn"
+          ]
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:execute-api:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "Api"
+              },
+              "/*/POST/*"
+            ]
+          ]
+        }
+      },
+      "DependsOn": [
+        "MoMessageFunction",
+        "Api"
+      ]
+    },
+    "PutFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "ZipFile": {
+            "Fn::Join": [
+              "\n",
+              [
+                "const AWS = require('aws-sdk'),",
+                "      dynamo = new AWS.DynamoDB();",
+                "",
+                "exports.handler = (event, context, callback) => {",
+                "  const blacklistId = event.pathParameters.blacklist_id;",
+                "  withSupportedType(event, context, callback, function(notificationType) {",
+                "    dynamo.updateItem({",
+                "      TableName: process.env.TABLE_NAME,",
+                "      Key: { Id: { S: blacklistId }, Type: { S: notificationType } },",
+                "      ExpressionAttributeValues: {",
+                "        ':d': { S: (new Date()).toISOString() }",
+                "      },",
+                "      UpdateExpression: 'SET UpdatedAt=:d REMOVE DeletedAt'",
+                "    }, function(err, data) {",
+                "      if (err) return callback(err);",
+                "      callback(null, { statusCode: 200, body: JSON.stringify({ id: blacklistId }) });",
+                "    })",
+                "  });",
+                "}",
+                "",
+                "function withSupportedType(event, context, lambdaCallback, callback) {",
+                "  const supportedTypes = ['sms'];",
+                "  if (supportedTypes.indexOf(event.pathParameters.notification_type.toLowerCase()) >= 0) {",
+                "    callback(event.pathParameters.notification_type.toLowerCase());",
+                "  } else {",
+                "    lambdaCallback(null, { statusCode: 400, body: JSON.stringify({ message: 'Notification type [' + event.pathParameters.notification_type + '] not supported.' }) });",
+                "  }",
+                "}",
+                ""
+              ]
+            ]
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "TABLE_NAME": {
+              "Ref": "DB"
+            }
+          }
+        },
+        "Runtime": "nodejs4.3",
+        "Timeout": "30"
+      },
+      "DependsOn": [
+        "LambdaRole"
+      ]
+    },
+    "PutFunctionPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "PutFunction",
+            "Arn"
+          ]
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:execute-api:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "Api"
+              },
+              "/*/POST/*"
+            ]
+          ]
+        }
+      },
+      "DependsOn": [
+        "PutFunction",
+        "Api"
+      ]
+    }
+  },
+  "Outputs": {}
+}
