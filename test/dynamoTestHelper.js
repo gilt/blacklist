@@ -38,7 +38,7 @@ var mockDynamo = {
         Item: this.objects[request.TableName][request.Key]
       });
     } else {
-      callback(null, null);
+      callback(null, {});
     }
   },
   'putItem': function(request, callback) {

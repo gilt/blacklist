@@ -7,10 +7,10 @@ exports.handler = (event, context, callback) => {
   withSupportedType(event, context, callback, function(notificationType) {
     dynamo.getItem({
       TableName: process.env.TABLE_NAME,
-      Key: { Id: blacklistId, Type: notificationType }
+      Key: { Id: { S: blacklistId }, Type: { S: notificationType } }
     }, function(err, data) {
       if (err) return callback(err);
-      if ((data && afterNow(data, "DeletedAt")) || !onWhitelist(blacklistId)) {
+      if ((data && data.Item && afterNow(data, "DeletedAt")) || !onWhitelist(blacklistId)) {
         callback(null, { statusCode: 200, body: JSON.stringify({ id: blacklistId }) });
       } else {
         callback(null, { statusCode: 404, body: JSON.stringify({ message: "Entry not blacklisted" }) });
