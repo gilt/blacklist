@@ -4,6 +4,10 @@
     "StopWords": {
       "Type": "String",
       "Description": "A regular expression that is used to match the message as a 'stop' message."
+    },
+    "StageWhitelist": {
+      "Type": "String",
+      "Description": "A comma-delimited list (no spaces) of phone numbers to whitelist in the stage environment."
     }
   },
   "Resources": {
@@ -36,6 +40,46 @@
         },
         "TableName": {
           "Ref": "AWS::StackName"
+        }
+      }
+    },
+    "StageDB": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "Id",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "Type",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "Id",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "Type",
+            "KeyType": "RANGE"
+          }
+        ],
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 1,
+          "WriteCapacityUnits": 1
+        },
+        "TableName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "AWS::StackName"
+              },
+              "stage"
+            ]
+          ]
         }
       }
     },
@@ -89,25 +133,47 @@
                     "dynamodb:Scan",
                     "dynamodb:UpdateItem"
                   ],
-                  "Resource": {
-                    "Fn::Join": [
-                      "",
-                      [
-                        "arn:aws:dynamodb:",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        ":",
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        ":table/",
-                        {
-                          "Ref": "DB"
-                        }
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:aws:dynamodb:",
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          ":",
+                          {
+                            "Ref": "AWS::AccountId"
+                          },
+                          ":table/",
+                          {
+                            "Ref": "DB"
+                          }
+                        ]
                       ]
-                    ]
-                  }
+                    },
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:aws:dynamodb:",
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          ":",
+                          {
+                            "Ref": "AWS::AccountId"
+                          },
+                          ":table/",
+                          {
+                            "Ref": "DB"
+                          },
+                          "-stage"
+                        ]
+                      ]
+                    }
+                  ]
                 }
               ]
             }
@@ -375,7 +441,6 @@
     "Deployment": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
-        "StageName": "prod",
         "RestApiId": {
           "Ref": "Api"
         }
@@ -385,6 +450,77 @@
         "BlacklistGet",
         "BlacklistPut",
         "MoMessagePost"
+      ]
+    },
+    "ProdStage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "DeploymentId": {
+          "Ref": "Deployment"
+        },
+        "Description": {
+          "Fn::Join": [
+            " ",
+            [
+              "Production version of the",
+              {
+                "Ref": "AWS::StackName"
+              },
+              "API"
+            ]
+          ]
+        },
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "StageName": "prod",
+        "Variables": {
+          "TABLE_NAME": {
+            "Ref": "DB"
+          }
+        }
+      },
+      "DependsOn": [
+        "Api",
+        "DB",
+        "Deployment"
+      ]
+    },
+    "StageStage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "DeploymentId": {
+          "Ref": "Deployment"
+        },
+        "Description": {
+          "Fn::Join": [
+            " ",
+            [
+              "Production version of the",
+              {
+                "Ref": "AWS::StackName"
+              },
+              "API"
+            ]
+          ]
+        },
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "StageName": "stage",
+        "Variables": {
+          "TABLE_NAME": {
+            "Ref": "StageDB"
+          },
+          "WHITELIST": {
+            "Ref": "StageWhitelist"
+          }
+        }
+      },
+      "DependsOn": [
+        "Api",
+        "StageDB",
+        "Deployment"
       ]
     },
     "DeleteFunction": {
@@ -410,7 +546,7 @@
                 "  const blacklistId = sanitizeNumber(event.pathParameters.blacklist_id);",
                 "  withSupportedType(event, context, callback, function(notificationType) {",
                 "    dynamo.updateItem({",
-                "      TableName: process.env.TABLE_NAME,",
+                "      TableName: event.stageVariables.TABLE_NAME,",
                 "      Key: { Id: { S: blacklistId }, Type: { S: notificationType } },",
                 "      ExpressionAttributeNames: { '#l': 'Log' },",
                 "      ExpressionAttributeValues: {",
@@ -452,11 +588,7 @@
           }
         },
         "Environment": {
-          "Variables": {
-            "TABLE_NAME": {
-              "Ref": "DB"
-            }
-          }
+          "Variables": {}
         },
         "Runtime": "nodejs4.3",
         "Timeout": "30"
@@ -525,11 +657,11 @@
                 "  const blacklistId = sanitizeNumber(event.pathParameters.blacklist_id);",
                 "  withSupportedType(event, context, callback, function(notificationType) {",
                 "    dynamo.getItem({",
-                "      TableName: process.env.TABLE_NAME,",
+                "      TableName: event.stageVariables.TABLE_NAME,",
                 "      Key: { Id: { S: blacklistId }, Type: { S: notificationType } }",
                 "    }, function(err, data) {",
                 "      if (err) return callback(err);",
-                "      if ((data && data.Item && afterNow(data, \"DeletedAt\")) || !onWhitelist(blacklistId)) {",
+                "      if ((data && data.Item && afterNow(data, \"DeletedAt\")) || !onWhitelist(blacklistId, event.stageVariables.WHITELIST)) {",
                 "        callback(null, { statusCode: 200, body: JSON.stringify({ id: blacklistId }) });",
                 "      } else {",
                 "        callback(null, { statusCode: 404, body: JSON.stringify({ message: \"Entry not blacklisted\" }) });",
@@ -546,11 +678,10 @@
                 "  }",
                 "}",
                 "",
-                "function onWhitelist(blacklistId) {",
-                "  // Set the whitelist in staging to only allow certain entries.",
-                "  var whitelist = process.env.WHITELIST;",
+                "// Set the whitelist in staging to only allow certain entries.",
+                "function onWhitelist(blacklistId, whitelist) {",
                 "  if (whitelist && whitelist.trim() != '') {",
-                "    const whitelisted = process.env.WHITELIST.split(',');",
+                "    const whitelisted = whitelist.split(',');",
                 "    return whitelisted.findIndex(function(item) { return blacklistId == item.trim(); }) >= 0;",
                 "  } else {",
                 "    return true;",
@@ -584,11 +715,7 @@
           }
         },
         "Environment": {
-          "Variables": {
-            "TABLE_NAME": {
-              "Ref": "DB"
-            }
-          }
+          "Variables": {}
         },
         "Runtime": "nodejs4.3",
         "Timeout": "30"
@@ -660,7 +787,7 @@
                 "      if (originNumberMatch = moMessageXml.match(/<\\s*source\\s+.*?address\\s*=\\s*[\"'](.*?)[\"']/)) {",
                 "        var originNumber = sanitizeNumber(originNumberMatch[1]);",
                 "        dynamo.updateItem({",
-                "          TableName: process.env.TABLE_NAME,",
+                "          TableName: event.stageVariables.TABLE_NAME,",
                 "          Key: { Id: { S: originNumber }, Type: { S: 'sms' } },",
                 "          ExpressionAttributeNames: { '#l': 'Log' },",
                 "          ExpressionAttributeValues: {",
@@ -695,9 +822,6 @@
         },
         "Environment": {
           "Variables": {
-            "TABLE_NAME": {
-              "Ref": "DB"
-            },
             "STOP_WORDS": {
               "Ref": "StopWords"
             }
@@ -770,7 +894,7 @@
                 "  const blacklistId = sanitizeNumber(event.pathParameters.blacklist_id);",
                 "  withSupportedType(event, context, callback, function(notificationType) {",
                 "    dynamo.updateItem({",
-                "      TableName: process.env.TABLE_NAME,",
+                "      TableName: event.stageVariables.TABLE_NAME,",
                 "      Key: { Id: { S: blacklistId }, Type: { S: notificationType } },",
                 "      ExpressionAttributeNames: { '#l': 'Log' },",
                 "      ExpressionAttributeValues: {",
@@ -812,11 +936,7 @@
           }
         },
         "Environment": {
-          "Variables": {
-            "TABLE_NAME": {
-              "Ref": "DB"
-            }
-          }
+          "Variables": {}
         },
         "Runtime": "nodejs4.3",
         "Timeout": "30"

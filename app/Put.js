@@ -6,7 +6,7 @@ exports.handler = (event, context, callback) => {
   const blacklistId = sanitizeNumber(event.pathParameters.blacklist_id);
   withSupportedType(event, context, callback, function(notificationType) {
     dynamo.updateItem({
-      TableName: process.env.TABLE_NAME,
+      TableName: event.stageVariables.TABLE_NAME,
       Key: { Id: { S: blacklistId }, Type: { S: notificationType } },
       ExpressionAttributeNames: { '#l': 'Log' },
       ExpressionAttributeValues: {

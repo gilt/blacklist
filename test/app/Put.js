@@ -3,8 +3,6 @@ var assert = require('assert'),
     helper = require('../dynamoTestHelper'),
     lib = require('../../app/Put');
 
-process.env.TABLE_NAME = "blacklist";
-
 describe('Put', function() {
   common.sanitizationVariants.forEach(function(phoneNumber) {
     describe('Variant ' + phoneNumber, function() {
@@ -22,7 +20,8 @@ describe('Put', function() {
           pathParameters: {
             blacklist_id: phoneNumber,
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -41,7 +40,8 @@ describe('Put', function() {
           pathParameters: {
             blacklist_id: phoneNumber,
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -69,7 +69,8 @@ describe('Put', function() {
           pathParameters: {
             blacklist_id: phoneNumber,
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -83,7 +84,8 @@ describe('Put', function() {
             pathParameters: {
               blacklist_id: phoneNumber,
               notification_type: 'sms'
-            }
+            },
+            stageVariables: { TABLE_NAME: common.tableName }
           }, null, function(err, data) {
             assert.equal(err, null);
             assert.equal(data.statusCode, 200);
@@ -101,7 +103,8 @@ describe('Put', function() {
           pathParameters: {
             blacklist_id: phoneNumber,
             notification_type: 'invalid'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 400);
@@ -116,7 +119,8 @@ describe('Put', function() {
           pathParameters: {
             blacklist_id: phoneNumber,
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);

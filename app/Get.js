@@ -6,11 +6,11 @@ exports.handler = (event, context, callback) => {
   const blacklistId = sanitizeNumber(event.pathParameters.blacklist_id);
   withSupportedType(event, context, callback, function(notificationType) {
     dynamo.getItem({
-      TableName: process.env.TABLE_NAME,
+      TableName: event.stageVariables.TABLE_NAME,
       Key: { Id: { S: blacklistId }, Type: { S: notificationType } }
     }, function(err, data) {
       if (err) return callback(err);
-      if ((data && data.Item && afterNow(data, "DeletedAt")) || !onWhitelist(blacklistId)) {
+      if ((data && data.Item && afterNow(data, "DeletedAt")) || !onWhitelist(blacklistId, event.stageVariables.WHITELIST)) {
         callback(null, { statusCode: 200, body: JSON.stringify({ id: blacklistId }) });
       } else {
         callback(null, { statusCode: 404, body: JSON.stringify({ message: "Entry not blacklisted" }) });
@@ -27,11 +27,10 @@ function afterNow(data, propertyName) {
   }
 }
 
-function onWhitelist(blacklistId) {
-  // Set the whitelist in staging to only allow certain entries.
-  var whitelist = process.env.WHITELIST;
+// Set the whitelist in staging to only allow certain entries.
+function onWhitelist(blacklistId, whitelist) {
   if (whitelist && whitelist.trim() != '') {
-    const whitelisted = process.env.WHITELIST.split(',');
+    const whitelisted = whitelist.split(',');
     return whitelisted.findIndex(function(item) { return blacklistId == item.trim(); }) >= 0;
   } else {
     return true;

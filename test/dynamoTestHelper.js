@@ -1,4 +1,5 @@
 const AWS = require('aws-sdk'),
+      common = require('./testHelper'),
       sinon = require('sinon');
 
 exports.clear = function() {
@@ -7,8 +8,8 @@ exports.clear = function() {
 }
 
 exports.get = function(blacklistId, notificationType) {
-  if (mockDynamo.objects[process.env.TABLE_NAME]) {
-    return mockDynamo.objects[process.env.TABLE_NAME][{id:{S:blacklistId},type:{S:notificationType}}];
+  if (mockDynamo.objects[common.tableName]) {
+    return mockDynamo.objects[common.tableName][{id:{S:blacklistId},type:{S:notificationType}}];
   }
 }
 
@@ -18,8 +19,8 @@ exports.mockFor = function(lib) {
 }
 
 exports.put = function(value) {
-  if (!mockDynamo.objects[process.env.TABLE_NAME]) mockDynamo.objects[process.env.TABLE_NAME] = {};
-  mockDynamo.objects[process.env.TABLE_NAME][{id:{S:value.id},type:{S:value.type}}] = value;
+  if (!mockDynamo.objects[common.tableName]) mockDynamo.objects[common.tableName] = {};
+  mockDynamo.objects[common.tableName][{id:{S:value.id},type:{S:value.type}}] = value;
 }
 
 function refreshRequire(lib) {

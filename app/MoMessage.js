@@ -9,7 +9,7 @@ exports.handler = (event, context, callback) => {
       if (originNumberMatch = moMessageXml.match(/<\s*source\s+.*?address\s*=\s*["'](.*?)["']/)) {
         var originNumber = sanitizeNumber(originNumberMatch[1]);
         dynamo.updateItem({
-          TableName: process.env.TABLE_NAME,
+          TableName: event.stageVariables.TABLE_NAME,
           Key: { Id: { S: originNumber }, Type: { S: 'sms' } },
           ExpressionAttributeNames: { '#l': 'Log' },
           ExpressionAttributeValues: {

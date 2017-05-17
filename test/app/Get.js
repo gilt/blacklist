@@ -3,8 +3,6 @@ var assert = require('assert'),
     helper = require('../dynamoTestHelper'),
     lib = require('../../app/Get');
 
-process.env.TABLE_NAME = "blacklist";
-
 describe('Get', function() {
   common.sanitizationVariants.forEach(function(phoneNumber) {
     describe('Variant ' + phoneNumber, function() {
@@ -22,7 +20,8 @@ describe('Get', function() {
           pathParameters: {
             blacklist_id: '2125555555',
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 404);
@@ -36,7 +35,8 @@ describe('Get', function() {
           pathParameters: {
             blacklist_id: '2125555555',
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -50,7 +50,8 @@ describe('Get', function() {
           pathParameters: {
             blacklist_id: '2125555555',
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 404);
@@ -66,7 +67,8 @@ describe('Get', function() {
           pathParameters: {
             blacklist_id: '2125555555',
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -75,12 +77,12 @@ describe('Get', function() {
       });
 
       it('should successfully return an entry as blacklisted if there is a whitelist and it is not on the whitelist', function() {
-        process.env.WHITELIST = '2125555550, 2125555551';
         lib.handler({
           pathParameters: {
             blacklist_id: '2125555555',
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName, WHITELIST: '2125555550, 2125555551' }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -89,12 +91,12 @@ describe('Get', function() {
       });
 
       it('should return a 404 if there is a whitelist and it is on the whitelist', function() {
-        process.env.WHITELIST = '2125555555, 2125555550';
         lib.handler({
           pathParameters: {
             blacklist_id: '2125555555',
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName, WHITELIST: '2125555555, 2125555550' }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 404);
@@ -103,12 +105,12 @@ describe('Get', function() {
       });
 
       it('should return a 404 by ignoring the whitelist if it is empty', function() {
-        process.env.WHITELIST = ' ';
         lib.handler({
           pathParameters: {
             blacklist_id: '2125555555',
             notification_type: 'sms'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName, WHITELIST: ' ' }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 404);
@@ -121,7 +123,8 @@ describe('Get', function() {
           pathParameters: {
             blacklist_id: '2125555555',
             notification_type: 'invalid'
-          }
+          },
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 400);

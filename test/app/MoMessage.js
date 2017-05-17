@@ -3,7 +3,6 @@ var assert = require('assert'),
     helper = require('../dynamoTestHelper'),
     lib = require('../../app/MoMessage');
 
-process.env.TABLE_NAME = "blacklist";
 process.env.STOP_WORDS = "(stop|unsubscribe)"
 
 const moMessageTemplate = '<?xml version="1.0" encoding="UTF-8"?>' +
@@ -27,7 +26,8 @@ describe('MoMessage', function() {
       it('should successfully add to the blacklist', function() {
         assert.equal(helper.get('2125555555', 'sms'), undefined);
         lib.handler({
-          body: moMessageTemplate.replace('{message}', 'Please Stop').replace('{number}', phoneNumber)
+          body: moMessageTemplate.replace('{message}', 'Please Stop').replace('{number}', phoneNumber),
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -43,7 +43,8 @@ describe('MoMessage', function() {
       it('should work for alternative stop words', function() {
         assert.equal(helper.get('2125555555', 'sms'), undefined);
         lib.handler({
-          body: moMessageTemplate.replace('{message}', 'UnSubscribeMe!!!').replace('{number}', phoneNumber)
+          body: moMessageTemplate.replace('{message}', 'UnSubscribeMe!!!').replace('{number}', phoneNumber),
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -60,7 +61,8 @@ describe('MoMessage', function() {
         assert.equal(helper.get('2125555555', 'sms'), undefined);
         var body = moMessageTemplate.replace('{message}', 'UnSubscribeMe!!!').replace('{number}', phoneNumber);
         lib.handler({
-          body: body
+          body: body,
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -70,7 +72,8 @@ describe('MoMessage', function() {
           assert.equal(rawValue.Type.S, 'sms');
           assert.deepEqual(rawValue.Log.SS, [body]);
           lib.handler({
-            body: body
+            body: body,
+            stageVariables: { TABLE_NAME: common.tableName }
           }, null, function(err, data) {
             assert.equal(err, null);
             assert.equal(data.statusCode, 200);
@@ -86,7 +89,8 @@ describe('MoMessage', function() {
       it('should not blacklist if the message does not include a stop word', function() {
         assert.equal(helper.get('2125555555', 'sms'), undefined);
         lib.handler({
-          body: moMessageTemplate.replace('{message}', 'Hello there').replace('{number}', phoneNumber)
+          body: moMessageTemplate.replace('{message}', 'Hello there').replace('{number}', phoneNumber),
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -98,7 +102,8 @@ describe('MoMessage', function() {
       it('should successfully update the blacklist without dropping existing properties', function() {
         helper.put({Id:{S:'2125555555'},Type:{S:'sms'},Foo:{S:'Bar'}});
         lib.handler({
-          body: moMessageTemplate.replace('{message}', 'Please Stop').replace('{number}', phoneNumber)
+          body: moMessageTemplate.replace('{message}', 'Please Stop').replace('{number}', phoneNumber),
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -115,7 +120,8 @@ describe('MoMessage', function() {
       it('should remove the DeletedAt property when present', function() {
         helper.put({Id:{S:'2125555555'},Type:{S:'sms'},DeletedAt:{S: '2017-01-01 00:00:00'}});
         lib.handler({
-          body: moMessageTemplate.replace('{message}', 'Please Stop').replace('{number}', phoneNumber)
+          body: moMessageTemplate.replace('{message}', 'Please Stop').replace('{number}', phoneNumber),
+          stageVariables: { TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
@@ -134,7 +140,8 @@ describe('MoMessage', function() {
   it('should fail gracefully if the message is invalid', function() {
     assert.equal(helper.get('2125555555', 'sms'), undefined);
     lib.handler({
-      body: 'invalid'
+      body: 'invalid',
+      stageVariables: { TABLE_NAME: common.tableName }
     }, null, function(err, data) {
       assert.equal(err, null);
       assert.equal(data.statusCode, 400);
@@ -146,7 +153,8 @@ describe('MoMessage', function() {
   it('should fail gracefully if there is no source address', function() {
     assert.equal(helper.get('2125555555', 'sms'), undefined);
     lib.handler({
-      body: '<moMessage><message>Please Stop</message><moMessage>'
+      body: '<moMessage><message>Please Stop</message><moMessage>',
+      stageVariables: { TABLE_NAME: common.tableName }
     }, null, function(err, data) {
       assert.equal(err, null);
       assert.equal(data.statusCode, 400);

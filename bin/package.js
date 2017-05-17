@@ -14,9 +14,7 @@ const cloudFormationFunctionTemplate = {
       }
     },
     "Environment": {
-      "Variables": {
-        "TABLE_NAME": { "Ref": "DB" }
-      }
+      "Variables": { }
     },
     "Runtime": "nodejs4.3",
     "Timeout": "30"
