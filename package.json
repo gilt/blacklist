@@ -1,6 +1,6 @@
 {
   "name": "blacklist",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A nanoservice that keeps track of recipients who should not be sent a certain type of communication",
   "main": "app/apidoc-swagger-generator.js",
   "directories": {
@@ -22,7 +22,7 @@
   "bugs": {
     "url": "https://github.com/gilt/blacklist/issues"
   },
-  "dependencies": { },
+  "dependencies": {},
   "devDependencies": {
     "aws-sdk": "2.x",
     "mocha": "^2.4.5",
