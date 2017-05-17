@@ -2,7 +2,7 @@
   "name": "blacklist",
   "version": "1.0.0",
   "description": "A nanoservice that keeps track of recipients who should not be sent a certain type of communication",
-  "main": "app/apidoc-swagger-generator.js",
+  "main": "app/MoMessage.js",
   "directories": {
     "test": "test"
   },
