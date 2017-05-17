@@ -1,0 +1,200 @@
+{
+	"swagger": "2.0",
+	"info": {
+		"version": "1.0.0",
+		"title": "Blacklist Nanoservice",
+		"description": "Keeps track of recipients who should not be sent a certain type of communication"
+	},
+	"paths": {
+		"/mo_message": {
+			"post": {
+				"description": "Submits a mobile-originated message to the Blacklist for processing. May or may not result in the blacklisting of the originating mobile number, depending on the content of the message.",
+				"consumes": ["text/xml"],
+				"produces": ["application/json"],
+				"parameters": [{
+					"name": "mo_message",
+					"in": "body",
+					"schema": {
+						"type": "string"
+					},
+					"description": "The xml message defining the message that was sent from the mobile device to the short code.",
+					"required": true
+				}],
+				"responses": {
+					"200": {
+						"description": "The xml was received successfully.",
+						"schema": {
+							"$ref": "#/definitions/BlacklistEntry"
+						}
+					},
+					"400": {
+						"description": "The xml was not valid.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"500": {
+						"description": "Generic server error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/{notification_type}/{blacklist_id}": {
+			"delete": {
+				"description": "Removes the destination defined by blacklist_id from the blacklist for the given notification_type. Not currently implemented.",
+				"produces": ["application/json"],
+				"parameters": [{
+					"name": "notification_type",
+					"in": "path",
+					"description": "The type of notification that can be sent to the destination.",
+					"type": "string",
+					"enum": ["sms", "email"],
+					"required": true
+				}, {
+					"name": "blacklist_id",
+					"in": "path",
+					"description": "The unique identifier of the destination to be blacklisted. The format of this identifier will vary based on the notification_type. For example, it will be a phone number for \"sms\" and an email address for \"email\".",
+					"type": "string",
+					"required": true
+				}],
+				"responses": {
+					"200": {
+						"description": "The given destination has been removed from the blacklist for the given notification_type.",
+						"schema": {
+							"$ref": "#/definitions/BlacklistEntry"
+						}
+					},
+					"400": {
+						"description": "Generic client error, likely that the notification_type does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"500": {
+						"description": "Generic server error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"get": {
+				"description": "Determine whether or not the destination defined by blacklist_id is blacklisted for the given notification_type.",
+				"produces": ["application/json"],
+				"parameters": [{
+					"name": "notification_type",
+					"in": "path",
+					"description": "The type of notification that can be sent to the destination.",
+					"type": "string",
+					"enum": ["sms", "email"],
+					"required": true
+				}, {
+					"name": "blacklist_id",
+					"in": "path",
+					"description": "The unique identifier of the destination to be blacklisted. The format of this identifier will vary based on the notification_type. For example, it will be a phone number for \"sms\" and an email address for \"email\".",
+					"type": "string",
+					"required": true
+				}],
+				"responses": {
+					"200": {
+						"description": "The given destination is on the blacklist for the given notification_type.",
+						"schema": {
+							"$ref": "#/definitions/BlacklistEntry"
+						}
+					},
+					"400": {
+						"description": "Generic client error, likely that the notification_type does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"404": {
+						"description": "The given destination has not been blacklisted for the given notification_type.",
+						"schema": {
+							"$ref": "#/definitions/NotFoundError"
+						}
+					},
+					"500": {
+						"description": "Generic server error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"put": {
+				"description": "Adds the destination defined by blacklist_id to the blacklist for the given notification_type. Not currently implemented.",
+				"produces": ["application/json"],
+				"parameters": [{
+					"name": "notification_type",
+					"in": "path",
+					"description": "The type of notification that can be sent to the destination.",
+					"type": "string",
+					"enum": ["sms", "email"],
+					"required": true
+				}, {
+					"name": "blacklist_id",
+					"in": "path",
+					"description": "The unique identifier of the destination to be blacklisted. The format of this identifier will vary based on the notification_type. For example, it will be a phone number for \"sms\" and an email address for \"email\".",
+					"type": "string",
+					"required": true
+				}],
+				"responses": {
+					"200": {
+						"description": "The given destination has been added to the blacklist for the given notification_type.",
+						"schema": {
+							"$ref": "#/definitions/BlacklistEntry"
+						}
+					},
+					"400": {
+						"description": "Generic client error, likely that the notification_type does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"500": {
+						"description": "Generic server error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		}
+	},
+	"definitions": {
+		"BlacklistEntry": {
+			"description": "Represents something that has been blacklisted.",
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string"
+				}
+			},
+			"required": ["id"]
+		},
+		"Error": {
+			"description": "Represents an error response.",
+			"type": "object",
+			"properties": {
+				"message": {
+					"type": "string"
+				}
+			},
+			"required": ["message"]
+		},
+		"NotFoundError": {
+			"description": "Represents a 404 Not Found error response.",
+			"type": "object",
+			"properties": {
+				"message": {
+					"type": "string"
+				}
+			},
+			"required": ["message"]
+		}
+	}
+}
