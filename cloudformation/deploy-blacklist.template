@@ -83,6 +83,41 @@
         }
       }
     },
+    "NotificationQueue": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "TopicName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "AWS::StackName"
+              },
+              "add",
+              "notification"
+            ]
+          ]
+        }
+      }
+    },
+    "StageNotificationQueue": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "TopicName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "AWS::StackName"
+              },
+              "add",
+              "notification",
+              "stage"
+            ]
+          ]
+        }
+      }
+    },
     "LambdaRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
@@ -172,6 +207,28 @@
                           "-stage"
                         ]
                       ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "NotificationPublisher",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sns:Publish"
+                  ],
+                  "Resource": [
+                    {
+                      "Ref": "NotificationQueue"
+                    },
+                    {
+                      "Ref": "StageNotificationQueue"
                     }
                   ]
                 }
@@ -475,6 +532,9 @@
         },
         "StageName": "prod",
         "Variables": {
+          "NOTIFICATION_QUEUE": {
+            "Ref": "NotificationQueue"
+          },
           "TABLE_NAME": {
             "Ref": "DB"
           }
@@ -509,6 +569,9 @@
         },
         "StageName": "stage",
         "Variables": {
+          "NOTIFICATION_QUEUE": {
+            "Ref": "StageNotificationQueue"
+          },
           "TABLE_NAME": {
             "Ref": "StageDB"
           },
@@ -777,7 +840,8 @@
               "\n",
               [
                 "const AWS = require('aws-sdk'),",
-                "      dynamo = new AWS.DynamoDB();",
+                "      dynamo = new AWS.DynamoDB(),",
+                "      sns = new AWS.SNS();",
                 "",
                 "exports.handler = (event, context, callback) => {",
                 "  const moMessageXml = event.body;",
@@ -797,7 +861,15 @@
                 "          UpdateExpression: 'SET UpdatedAt=:d ADD #l :m REMOVE DeletedAt'",
                 "        }, function(err, data) {",
                 "          if (err) return callback(err);",
-                "          callback(null, { statusCode: 200, body: JSON.stringify({ id: originNumber }) });",
+                "          sns.publish({",
+                "            Message: JSON.stringify({",
+                "              phone_number: originNumber",
+                "            }),",
+                "            TopicArn: event.stageVariables.NOTIFICATION_QUEUE",
+                "          }, function(err, data) {",
+                "            if (err) return callback(err);",
+                "            callback(null, { statusCode: 200, body: JSON.stringify({ id: originNumber }) });",
+                "          })",
                 "        });",
                 "      } else {",
                 "        callback(null, { statusCode: 400, body: JSON.stringify({ message: 'Missing source address' }) });",

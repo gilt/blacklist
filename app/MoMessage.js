@@ -1,5 +1,6 @@
 const AWS = require('aws-sdk'),
-      dynamo = new AWS.DynamoDB();
+      dynamo = new AWS.DynamoDB(),
+      sns = new AWS.SNS();
 
 exports.handler = (event, context, callback) => {
   const moMessageXml = event.body;
@@ -19,7 +20,15 @@ exports.handler = (event, context, callback) => {
           UpdateExpression: 'SET UpdatedAt=:d ADD #l :m REMOVE DeletedAt'
         }, function(err, data) {
           if (err) return callback(err);
-          callback(null, { statusCode: 200, body: JSON.stringify({ id: originNumber }) });
+          sns.publish({
+            Message: JSON.stringify({
+              phone_number: originNumber
+            }),
+            TopicArn: event.stageVariables.NOTIFICATION_QUEUE
+          }, function(err, data) {
+            if (err) return callback(err);
+            callback(null, { statusCode: 200, body: JSON.stringify({ id: originNumber }) });
+          })
         });
       } else {
         callback(null, { statusCode: 400, body: JSON.stringify({ message: 'Missing source address' }) });

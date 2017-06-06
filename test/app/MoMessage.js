@@ -1,6 +1,7 @@
 var assert = require('assert'),
     common = require('../testHelper'),
-    helper = require('../dynamoTestHelper'),
+    dynamoHelper = require('../dynamoTestHelper'),
+    snsHelper = require('../snsTestHelper'),
     lib = require('../../app/MoMessage');
 
 process.env.STOP_WORDS = "(stop|unsubscribe)"
@@ -16,32 +17,37 @@ describe('MoMessage', function() {
   common.sanitizationVariants.forEach(function(phoneNumber) {
     describe('Variant ' + phoneNumber, function() {
       beforeEach(function() {
-        lib = helper.mockFor('../app/MoMessage');
+        lib = dynamoHelper.mockFor('../app/MoMessage');
+        lib = snsHelper.mockFor('../app/MoMessage');
       });
 
       afterEach(function() {
-        helper.clear();
+        dynamoHelper.clear();
+        snsHelper.clear();
       });
 
       it('should successfully add to the blacklist', function() {
-        assert.equal(helper.get('2125555555', 'sms'), undefined);
+        const arn = 'sns-topic-arn';
+        assert.equal(dynamoHelper.get('2125555555', 'sms'), undefined);
+        assert.deepEqual(snsHelper.getMessages(arn), []);
         lib.handler({
           body: moMessageTemplate.replace('{message}', 'Please Stop').replace('{number}', phoneNumber),
-          stageVariables: { TABLE_NAME: common.tableName }
+          stageVariables: { NOTIFICATION_QUEUE: arn, TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
           assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
-          var rawValue = helper.get('2125555555', 'sms');
+          var rawValue = dynamoHelper.get('2125555555', 'sms');
           assert.equal(rawValue.Id.S, '2125555555');
           assert.equal(rawValue.Type.S, 'sms');
           assert.notEqual(rawValue.UpdatedAt, null);
           assert.notEqual(rawValue.UpdatedAt.S, null);
+          assert.deepEqual(snsHelper.getMessages(arn), [JSON.stringify({ phone_number: '2125555555' })]);
         });
       });
 
       it('should work for alternative stop words', function() {
-        assert.equal(helper.get('2125555555', 'sms'), undefined);
+        assert.equal(dynamoHelper.get('2125555555', 'sms'), undefined);
         lib.handler({
           body: moMessageTemplate.replace('{message}', 'UnSubscribeMe!!!').replace('{number}', phoneNumber),
           stageVariables: { TABLE_NAME: common.tableName }
@@ -49,7 +55,7 @@ describe('MoMessage', function() {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
           assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
-          var rawValue = helper.get('2125555555', 'sms');
+          var rawValue = dynamoHelper.get('2125555555', 'sms');
           assert.equal(rawValue.Id.S, '2125555555');
           assert.equal(rawValue.Type.S, 'sms');
           assert.notEqual(rawValue.UpdatedAt, null);
@@ -58,7 +64,7 @@ describe('MoMessage', function() {
       });
 
       it('should keep track of messages', function() {
-        assert.equal(helper.get('2125555555', 'sms'), undefined);
+        assert.equal(dynamoHelper.get('2125555555', 'sms'), undefined);
         var body = moMessageTemplate.replace('{message}', 'UnSubscribeMe!!!').replace('{number}', phoneNumber);
         lib.handler({
           body: body,
@@ -67,7 +73,7 @@ describe('MoMessage', function() {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
           assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
-          var rawValue = helper.get('2125555555', 'sms');
+          var rawValue = dynamoHelper.get('2125555555', 'sms');
           assert.equal(rawValue.Id.S, '2125555555');
           assert.equal(rawValue.Type.S, 'sms');
           assert.deepEqual(rawValue.Log.SS, [body]);
@@ -78,7 +84,7 @@ describe('MoMessage', function() {
             assert.equal(err, null);
             assert.equal(data.statusCode, 200);
             assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
-            var rawValue = helper.get('2125555555', 'sms');
+            var rawValue = dynamoHelper.get('2125555555', 'sms');
             assert.equal(rawValue.Id.S, '2125555555');
             assert.equal(rawValue.Type.S, 'sms');
             assert.deepEqual(rawValue.Log.SS, [body, body]);
@@ -87,20 +93,23 @@ describe('MoMessage', function() {
       });
 
       it('should not blacklist if the message does not include a stop word', function() {
-        assert.equal(helper.get('2125555555', 'sms'), undefined);
+        const arn = 'sns-topic-arn';
+        assert.equal(dynamoHelper.get('2125555555', 'sms'), undefined);
+        assert.deepEqual(snsHelper.getMessages(arn), []);
         lib.handler({
           body: moMessageTemplate.replace('{message}', 'Hello there').replace('{number}', phoneNumber),
-          stageVariables: { TABLE_NAME: common.tableName }
+          stageVariables: { NOTIFICATION_QUEUE: arn, TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
           assert.deepEqual(JSON.parse(data.body), {id: ''});
-          assert.equal(helper.get('2125555555', 'sms'), undefined);
+          assert.equal(dynamoHelper.get('2125555555', 'sms'), undefined);
+          assert.deepEqual(snsHelper.getMessages(arn), []);
         });
       });
 
       it('should successfully update the blacklist without dropping existing properties', function() {
-        helper.put({Id:{S:'2125555555'},Type:{S:'sms'},Foo:{S:'Bar'}});
+        dynamoHelper.put({Id:{S:'2125555555'},Type:{S:'sms'},Foo:{S:'Bar'}});
         lib.handler({
           body: moMessageTemplate.replace('{message}', 'Please Stop').replace('{number}', phoneNumber),
           stageVariables: { TABLE_NAME: common.tableName }
@@ -108,7 +117,7 @@ describe('MoMessage', function() {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
           assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
-          var rawValue = helper.get('2125555555', 'sms');
+          var rawValue = dynamoHelper.get('2125555555', 'sms');
           assert.equal(rawValue.Id.S, '2125555555');
           assert.equal(rawValue.Type.S, 'sms');
           assert.notEqual(rawValue.UpdatedAt, null);
@@ -118,27 +127,30 @@ describe('MoMessage', function() {
       });
 
       it('should remove the DeletedAt property when present', function() {
-        helper.put({Id:{S:'2125555555'},Type:{S:'sms'},DeletedAt:{S: '2017-01-01 00:00:00'}});
+        const arn = 'sns-topic-arn';
+        dynamoHelper.put({Id:{S:'2125555555'},Type:{S:'sms'},DeletedAt:{S: '2017-01-01 00:00:00'}});
+        assert.deepEqual(snsHelper.getMessages(arn), []);
         lib.handler({
           body: moMessageTemplate.replace('{message}', 'Please Stop').replace('{number}', phoneNumber),
-          stageVariables: { TABLE_NAME: common.tableName }
+          stageVariables: { NOTIFICATION_QUEUE: arn, TABLE_NAME: common.tableName }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 200);
           assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
-          var rawValue = helper.get('2125555555', 'sms');
+          var rawValue = dynamoHelper.get('2125555555', 'sms');
           assert.equal(rawValue.Id.S, '2125555555');
           assert.equal(rawValue.Type.S, 'sms');
           assert.notEqual(rawValue.UpdatedAt, null);
           assert.notEqual(rawValue.UpdatedAt.S, null);
           assert.equal(rawValue.DeletedAt, null);
+          assert.deepEqual(snsHelper.getMessages(arn), [JSON.stringify({ phone_number: '2125555555' })]);
         });
       });
     });
   });
 
   it('should fail gracefully if the message is invalid', function() {
-    assert.equal(helper.get('2125555555', 'sms'), undefined);
+    assert.equal(dynamoHelper.get('2125555555', 'sms'), undefined);
     lib.handler({
       body: 'invalid',
       stageVariables: { TABLE_NAME: common.tableName }
@@ -146,12 +158,12 @@ describe('MoMessage', function() {
       assert.equal(err, null);
       assert.equal(data.statusCode, 400);
       assert.deepEqual(JSON.parse(data.body), {message: 'Invalid message xml'});
-      assert.equal(helper.get('2125555555', 'sms'), undefined);
+      assert.equal(dynamoHelper.get('2125555555', 'sms'), undefined);
     });
   });
 
   it('should fail gracefully if there is no source address', function() {
-    assert.equal(helper.get('2125555555', 'sms'), undefined);
+    assert.equal(dynamoHelper.get('2125555555', 'sms'), undefined);
     lib.handler({
       body: '<moMessage><message>Please Stop</message><moMessage>',
       stageVariables: { TABLE_NAME: common.tableName }
@@ -159,7 +171,7 @@ describe('MoMessage', function() {
       assert.equal(err, null);
       assert.equal(data.statusCode, 400);
       assert.deepEqual(JSON.parse(data.body), {message: 'Missing source address'});
-      assert.equal(helper.get('2125555555', 'sms'), undefined);
+      assert.equal(dynamoHelper.get('2125555555', 'sms'), undefined);
     });
   });
 });
