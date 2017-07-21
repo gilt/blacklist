@@ -1,6 +1,6 @@
 {
   "name": "blacklist",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A nanoservice that keeps track of recipients who should not be sent a certain type of communication",
   "main": "app/MoMessage.js",
   "directories": {
