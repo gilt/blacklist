@@ -44,6 +44,38 @@ describe('Get', function() {
         });
       });
 
+      it('should successfully return an entry from the blacklist if it matches the filter', function() {
+        helper.put({Id:{S:'2125555555'},Type:{S:'sms'},"MetaData.short_code":{SS: ['12345']}});
+        lib.handler({
+          pathParameters: {
+            blacklist_id: '2125555555',
+            notification_type: 'sms'
+          },
+          stageVariables: { TABLE_NAME: common.tableName },
+          queryStringParameters: { short_code: '12345'}
+        }, null, function(err, data) {
+          assert.equal(err, null);
+          assert.equal(data.statusCode, 200);
+          assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
+        });
+      });
+
+      it('should successfully return an entry from the blacklist if it matches a multi-filter', function() {
+        helper.put({Id:{S:'2125555555'},Type:{S:'sms'},"MetaData.short_code":{SS: ['12345', '67890']},"MetaData.origin":{SS: ['mobile','website']}});
+        lib.handler({
+          pathParameters: {
+            blacklist_id: '2125555555',
+            notification_type: 'sms'
+          },
+          stageVariables: { TABLE_NAME: common.tableName },
+          queryStringParameters: { short_code: '12345', origin: 'website'}
+        }, null, function(err, data) {
+          assert.equal(err, null);
+          assert.equal(data.statusCode, 200);
+          assert.deepEqual(JSON.parse(data.body), {id: '2125555555'});
+        });
+      });
+
       it('should return a 404 if the entry is deleted', function() {
         helper.put({Id:{S:'2125555555'},Type:{S:'sms'},DeletedAt:{S: '2017-01-01 00:00:00'}});
         lib.handler({
@@ -52,6 +84,54 @@ describe('Get', function() {
             notification_type: 'sms'
           },
           stageVariables: { TABLE_NAME: common.tableName }
+        }, null, function(err, data) {
+          assert.equal(err, null);
+          assert.equal(data.statusCode, 404);
+          assert.deepEqual(JSON.parse(data.body), {message: 'Entry not blacklisted'});
+        });
+      });
+
+      it('should return a 404 if the entry does not match the filter', function() {
+        helper.put({Id:{S:'2125555555'},Type:{S:'sms'},"MetaData.short_code":{SS: ['12345']}});
+        lib.handler({
+          pathParameters: {
+            blacklist_id: '2125555555',
+            notification_type: 'sms'
+          },
+          stageVariables: { TABLE_NAME: common.tableName },
+          queryStringParameters: { short_code: '54321'}
+        }, null, function(err, data) {
+          assert.equal(err, null);
+          assert.equal(data.statusCode, 404);
+          assert.deepEqual(JSON.parse(data.body), {message: 'Entry not blacklisted'});
+        });
+      });
+
+      it('should return a 404 if the entry does not match the multi-filter', function() {
+        helper.put({Id:{S:'2125555555'},Type:{S:'sms'},"MetaData.short_code":{SS: ['12345']},"MetaData.origin":{SS: ['website']}});
+        lib.handler({
+          pathParameters: {
+            blacklist_id: '2125555555',
+            notification_type: 'sms'
+          },
+          stageVariables: { TABLE_NAME: common.tableName },
+          queryStringParameters: { short_code: '54321', origin: 'mobile' }
+        }, null, function(err, data) {
+          assert.equal(err, null);
+          assert.equal(data.statusCode, 404);
+          assert.deepEqual(JSON.parse(data.body), {message: 'Entry not blacklisted'});
+        });
+      });
+
+      it('should return a 404 if there is a filter but the entry does not have MetaData', function() {
+        helper.put({Id:{S:'2125555555'},Type:{S:'sms'}});
+        lib.handler({
+          pathParameters: {
+            blacklist_id: '2125555555',
+            notification_type: 'sms'
+          },
+          stageVariables: { TABLE_NAME: common.tableName },
+          queryStringParameters: { short_code: '54321' }
         }, null, function(err, data) {
           assert.equal(err, null);
           assert.equal(data.statusCode, 404);

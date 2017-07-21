@@ -1,7 +1,7 @@
 {
 	"swagger": "2.0",
 	"info": {
-		"version": "1.0.0",
+		"version": "1.1.0",
 		"title": "Blacklist Nanoservice",
 		"description": "Keeps track of recipients who should not be sent a certain type of communication"
 	},
@@ -19,6 +19,12 @@
 					},
 					"description": "The xml message defining the message that was sent from the mobile device to the short code.",
 					"required": true
+				}, {
+					"name": "origin",
+					"in": "query",
+					"description": "Optional metadata to indicate where the message originated from. Could be used in the GET endpoint to filter out responses from only certain origins.",
+					"type": "string",
+					"required": false
 				}],
 				"responses": {
 					"200": {
@@ -97,6 +103,18 @@
 					"description": "The unique identifier of the destination to be blacklisted. The format of this identifier will vary based on the notification_type. For example, it will be a phone number for \"sms\" and an email address for \"email\".",
 					"type": "string",
 					"required": true
+				}, {
+					"name": "origin",
+					"in": "query",
+					"description": "Optional metadata to indicate where the message originated from; specifying this will limit the blacklist to only phone numbers that unsubscribed via the given origin.",
+					"type": "string",
+					"required": false
+				}, {
+					"name": "short_code",
+					"in": "query",
+					"description": "Optional metadata to indicate the short code; specifying this will limit the blacklist to only phone numbers that unsubscribed from the given short code.",
+					"type": "string",
+					"required": false
 				}],
 				"responses": {
 					"200": {
@@ -141,6 +159,18 @@
 					"description": "The unique identifier of the destination to be blacklisted. The format of this identifier will vary based on the notification_type. For example, it will be a phone number for \"sms\" and an email address for \"email\".",
 					"type": "string",
 					"required": true
+				}, {
+					"name": "origin",
+					"in": "query",
+					"description": "Optional metadata to indicate where the message originated from. Could be used in the GET endpoint to filter out responses from only certain origins.",
+					"type": "string",
+					"required": false
+				}, {
+					"name": "short_code",
+					"in": "query",
+					"description": "Optional metadata to indicate the short code where the unsubscribe was sent. Could be used in the GET endpoint to filter out responses from only certain short codes.",
+					"type": "string",
+					"required": false
 				}],
 				"responses": {
 					"200": {

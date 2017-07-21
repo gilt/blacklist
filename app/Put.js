@@ -5,20 +5,40 @@ exports.handler = (event, context, callback) => {
   console.info(toMessageString(event));
   const blacklistId = sanitizeNumber(event.pathParameters.blacklist_id);
   withSupportedType(event, context, callback, function(notificationType) {
-    dynamo.updateItem({
-      TableName: event.stageVariables.TABLE_NAME,
-      Key: { Id: { S: blacklistId }, Type: { S: notificationType } },
-      ExpressionAttributeNames: { '#l': 'Log' },
-      ExpressionAttributeValues: {
+    withQueryStringAsMetaData(
+      event.queryStringParameters,
+      { '#l': 'Log' },
+      {
         ':d': { S: (new Date()).toISOString() },
-        ':m': { SS: [ toMessageString(event) ] }
+        ':l': { SS: [ toMessageString(event) ] }
       },
-      UpdateExpression: 'SET UpdatedAt=:d ADD #l :m REMOVE DeletedAt'
-    }, function(err, data) {
-      if (err) return callback(err);
-      callback(null, { statusCode: 200, body: JSON.stringify({ id: blacklistId }) });
-    })
+      '#l :l',
+      function(attrNames, attrValues, addExpr) {
+        dynamo.updateItem({
+          TableName: event.stageVariables.TABLE_NAME,
+          Key: { Id: { S: blacklistId }, Type: { S: notificationType } },
+          ExpressionAttributeNames: attrNames,
+          ExpressionAttributeValues: attrValues,
+          UpdateExpression: 'SET UpdatedAt=:d ADD ' + addExpr + ' REMOVE DeletedAt'
+        }, function(err, data) {
+          if (err) return callback(err);
+          callback(null, { statusCode: 200, body: JSON.stringify({ id: blacklistId }) });
+        })
+      }
+    );
   });
+}
+
+function withQueryStringAsMetaData(queryStringParams, attrNames, attrValues, addExpr, callback) {
+  queryStringParams = queryStringParams || {};
+  Object.keys(queryStringParams).forEach(function(key) {
+    const k = sanitizeString(key);
+    attrNames['#' + k] = 'MetaData.' + k;
+    attrValues[':' + k] = { SS: [ queryStringParams[key] ]};
+    if (addExpr.trim() != '') addExpr += ', ';
+    addExpr += '#' + k + ' :' + k;
+  });
+  callback(attrNames, attrValues, addExpr);
 }
 
 function withSupportedType(event, context, lambdaCallback, callback) {
@@ -36,9 +56,14 @@ function sanitizeNumber(raw) {
   return numbers;
 }
 
+function sanitizeString(raw) {
+  return raw.replace(/\W+/g, '_').toLowerCase();
+}
+
 function toMessageString(event) {
   return JSON.stringify({
     httpMethod: event.httpMethod,
-    pathParameters: event.pathParameters
+    pathParameters: event.pathParameters,
+    queryStringParameters: event.queryStringParameters
   })
 }

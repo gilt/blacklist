@@ -132,6 +132,67 @@ describe('Put', function() {
           assert.notEqual(rawValue.UpdatedAt.S, null);
         });
       });
+
+      it('should store querystring parameters as MetaData', function() {
+        assert.equal(helper.get('2125555555', 'sms'), undefined);
+        lib.handler({
+          pathParameters: {
+            blacklist_id: phoneNumber,
+            notification_type: 'sms'
+          },
+          stageVariables: { TABLE_NAME: common.tableName },
+          queryStringParameters: { origin: "website" }
+        }, null, function(err, data) {
+          assert.equal(err, null);
+          assert.equal(data.statusCode, 200);
+          var rawValue = helper.get('2125555555', 'sms');
+          assert.deepEqual(rawValue['MetaData.origin'].SS, ['website']);
+        });
+      });
+
+      it('should store multiple querystring parameters', function() {
+        assert.equal(helper.get('2125555555', 'sms'), undefined);
+        lib.handler({
+          pathParameters: {
+            blacklist_id: phoneNumber,
+            notification_type: 'sms'
+          },
+          stageVariables: { TABLE_NAME: common.tableName },
+          queryStringParameters: { origin: "website", short_code: "12345" }
+        }, null, function(err, data) {
+          lib.handler({
+            pathParameters: {
+              blacklist_id: phoneNumber,
+              notification_type: 'sms'
+            },
+            stageVariables: { TABLE_NAME: common.tableName },
+            queryStringParameters: { origin: "mobile" }
+          }, null, function(err, data) {
+            assert.equal(err, null);
+            assert.equal(data.statusCode, 200);
+            var rawValue = helper.get('2125555555', 'sms');
+            assert.deepEqual(rawValue['MetaData.origin'].SS, ['website', 'mobile']);
+            assert.deepEqual(rawValue['MetaData.short_code'].SS, ['12345']);
+          });
+        });
+      });
+
+      it('should sanitize querystring parameter names', function() {
+        assert.equal(helper.get('2125555555', 'sms'), undefined);
+        lib.handler({
+          pathParameters: {
+            blacklist_id: phoneNumber,
+            notification_type: 'sms'
+          },
+          stageVariables: { TABLE_NAME: common.tableName },
+          queryStringParameters: { "origin.$va!lid": "website" }
+        }, null, function(err, data) {
+          assert.equal(err, null);
+          assert.equal(data.statusCode, 200);
+          var rawValue = helper.get('2125555555', 'sms');
+          assert.deepEqual(rawValue['MetaData.origin_va_lid'].SS, ['website']);
+        });
+      });
     });
   });
 });

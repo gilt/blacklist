@@ -10,7 +10,7 @@ exports.handler = (event, context, callback) => {
       Key: { Id: { S: blacklistId }, Type: { S: notificationType } }
     }, function(err, data) {
       if (err) return callback(err);
-      if ((data && data.Item && afterNow(data, "DeletedAt")) || !onWhitelist(blacklistId, event.stageVariables.WHITELIST)) {
+      if ((data && data.Item && afterNow(data, "DeletedAt") && matchesFilter(event, data.Item)) || !onWhitelist(blacklistId, event.stageVariables.WHITELIST)) {
         callback(null, { statusCode: 200, body: JSON.stringify({ id: blacklistId }) });
       } else {
         callback(null, { statusCode: 404, body: JSON.stringify({ message: "Entry not blacklisted" }) });
@@ -25,6 +25,15 @@ function afterNow(data, propertyName) {
   } else {
     return true;
   }
+}
+
+function matchesFilter(event, item) {
+  const queryStringParams = event.queryStringParameters || {};
+  return queryStringParams.length == 0 || Object.keys(queryStringParams).every(function(key) {
+    const k = sanitizeString(key),
+          values = item['MetaData.' + k] || { SS: [] };
+    return !values || !values.SS || values.SS.includes(queryStringParams[key]);
+  });
 }
 
 // Set the whitelist in staging to only allow certain entries.
@@ -52,9 +61,14 @@ function sanitizeNumber(raw) {
   return numbers;
 }
 
+function sanitizeString(raw) {
+  return raw.replace(/\W+/g, '_').toLowerCase();
+}
+
 function toMessageString(event) {
   return JSON.stringify({
     httpMethod: event.httpMethod,
-    pathParameters: event.pathParameters
+    pathParameters: event.pathParameters,
+    queryStringParameters: event.queryStringParameters
   })
 }

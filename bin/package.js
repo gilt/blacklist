@@ -16,7 +16,7 @@ const cloudFormationFunctionTemplate = {
     "Environment": {
       "Variables": { }
     },
-    "Runtime": "nodejs4.3",
+    "Runtime": "nodejs6.10",
     "Timeout": "30"
   },
   "DependsOn": [

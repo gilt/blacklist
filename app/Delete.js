@@ -39,6 +39,7 @@ function sanitizeNumber(raw) {
 function toMessageString(event) {
   return JSON.stringify({
     httpMethod: event.httpMethod,
-    pathParameters: event.pathParameters
+    pathParameters: event.pathParameters,
+    queryStringParameters: event.queryStringParameters
   })
 }
